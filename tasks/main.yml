@@ -1,0 +1,49 @@
+---
+- name: Rename Linux OS username
+  become: true
+  ignore_errors: true
+  changed_when: false
+  tasks:
+    - name: Install ssh key for root access
+      authorized_key:
+        user: root
+        key: "{{ ssh_key }}"
+        state: present
+      remote_user: "{{ old_username }}"
+
+    - name: Make sure root can ssh in
+      lineinfile:
+        dest: /etc/ssh/sshd_config
+        backup: yes
+        regexp: "^PermitRootLogin"
+        insertafter: '^#PermitRootLogin'
+        line: "PermitRootLogin prohibit-password"
+        state: present
+      remote_user: "{{ old_username }}"
+      register: sshd_config
+      notify: restart_sshd
+
+    - name: Kill processes by user
+      shell: "pkill -u {{ old_username }}"
+      remote_user: root
+      ignore_errors: true
+
+    - name: Move home directory
+      user:
+        name: "{{ old_username }}"
+        home: "/home/{{ new_username }}"
+        move_home: yes
+      remote_user: root
+
+    - name: Rename user
+      command: "usermod --login {{ new_username }} {{ old_username }}"
+      remote_user: root
+      ignore_errors: true
+
+    - name: Restore sshd config
+      copy:
+        remote_src: yes
+        src: "{{ sshd_config.backup }}"
+        dest: /etc/ssh/sshd_config
+      remote_user: root
+      notify: restart_sshd

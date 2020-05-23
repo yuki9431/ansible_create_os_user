@@ -1,0 +1,4 @@
+---
+ssh_key: "{{ lookup('file', lookup('env','HOME') + '/.ssh/your_key.pub') }}"
+old_username: pi
+new_username: newpi
